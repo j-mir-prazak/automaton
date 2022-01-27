@@ -1,12 +1,37 @@
 var fs = require('fs')
 
-
-
 var source_dir = process.argv[2]
 var tmp_dir
 
 
-async function stats( file ) {
+// sourcedir    - input files directory
+// tmpdir       - mv input files to this directory
+// script       - script to run on these files
+// timeout      - check every %time
+
+var config = {
+
+    sourcedir: null,
+    tmpdir: null,
+    script: null,
+    timeout: null
+
+
+}
+
+// stats.last       - last stats read and to check for changes
+// stats.current    - current stats just read
+
+var stats = {
+
+    last: null,
+    current: null
+
+}
+
+
+
+async function readStats( file ) {
 
         var item_stat = await new Promise ( (resolve, error) => {
             fs.stat(file, (e,s) => { 
@@ -32,18 +57,23 @@ async function dir() {
     //await new Promise( ( resolve, error) => {
 	
     for await ( var item of content ) {         
-        await stats ( source_dir + '/' + item ) 
-        console.log('ping')         
+        //await readStats ( source_dir + '/' + item ) 
+        //console.log('ping')         
     }
     
-    content.forEach( (item) => {
+    for ( var i = 0; i < content.length; i++) {
+
+        //await readStats( source_dir + '/' + content[i] )
     
 
 
-    })
-
+    }
     
-    //})
+    for ( var i in content ) {
+        //await readStats( source_dir + '/' + content[i] )
+        //console.log('ping')
+        
+    }
 
     console.log('done')
 
