@@ -14,9 +14,12 @@ var config = {
 
     sourcedir: source_dir,
     tmpdir: tmp_dir,
-    script: null,
-    interval: 2000,
-    identical: 0
+    tmpRandom: '',
+    script: './shell.sh',
+    postScript: '',
+    interval: 500,
+    identical: 0,
+    archive: false
 
 }               
 
@@ -32,10 +35,20 @@ var stats = {
 
 var loop = true
 
+var char_string = ''
+char_string += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+char_string += char_string.toLowerCase(char_string)
+char_string += '1234567890' 
+
+console.log( char_string )
+
 async function readStats( file ) {
 
+        var file = file
+        var file_path = config.sourcedir + '/' + file
+
         var item_stat = await new Promise ( (resolve, error) => {
-            fs.stat(file, (e,s) => { 
+            fs.stat(file_path, (e,s) => { 
                 resolve(s)
             })
         })
@@ -43,6 +56,7 @@ async function readStats( file ) {
         //console.log( file + ": " + item_stat.isDirectory() )
         return {
             name: file,
+            path: file_path,
             size: item_stat.size,
             isdir: item_stat.isDirectory()
         }  
@@ -59,8 +73,39 @@ async function readDir() {
     return content
 }
 
+function randomString( length ) {
+
+    var string = ''
+    for ( var i = 0; i < length; i++ ) {
+        var random = Math.floor( Math.random() * char_string.length )
+        //console.log(random)
+        string += char_string[random]
+    }
+    
+    return string     
+
+}
+
 async function mvTmp( file, resolve ) {
-    var mv = cproc.spawn('./mvTmp.sh', [ file, config.tmpdir ])
+    var mv = cproc.spawn('./mvTmp.sh', [ file, config.tmpdir + '/' + config.tmpRandom ])
+
+    mv.stdout.on('data', (d) => {
+        console.log('' + d)
+    })
+    
+    mv.stderr.on('data', (e) => {
+        console.log('' + e)
+    })
+
+    mv.on('exit', (c) => {
+        if ( resolve ) resolve(c)    
+    })
+
+
+}
+
+async function rmTmp( resolve ) {
+    var mv = cproc.spawn('./rmTmp.sh', [ config.tmpdir + '/' + config.tmpRandom ])
 
     mv.stdout.on('data', (d) => {
         console.log('' + d)
@@ -78,9 +123,41 @@ async function mvTmp( file, resolve ) {
 }
 
 async function runSh( file, resolve ) {
+    var sh = cproc.spawn(config.script, [ config.tmpdir + '/' + config.tmpRandom + '/' + file ])
 
+    sh.stdout.on('data', (d) => {
+        //console.log('' + d)
+    })
+    
+    sh.stderr.on('data', (e) => {
+        //console.log('' + e)
+    })
+
+    sh.on('exit', (c) => {
+        if ( resolve ) resolve(c)    
+    })
+
+ 
 }
 
+
+async function runPostSh( file, resolve ) {
+    var sh = cproc.spawn(config.postScript, [ config.tmpdir + '/' + config.tmpRandom ])
+
+    sh.stdout.on('data', (d) => {
+        //console.log('' + d)
+    })
+    
+    sh.stderr.on('data', (e) => {
+        //console.log('' + e)
+    })
+
+    sh.on('exit', (c) => {
+        if ( resolve ) resolve(c)    
+    })
+
+ 
+}
 
 async function main() {                                      
 
@@ -93,7 +170,7 @@ async function main() {
     
         for ( var i in content ) {
             var file = '/' + i
-            var item = await readStats( config.sourcedir + '/' + content[i] )
+            var item = await readStats( content[i] )
             stats.current.push(item)       
         }
                          
@@ -107,7 +184,7 @@ async function main() {
             var diff = 0
             stats.current.forEach( ( item, ind ) => {
             
-                if ( stats.last[ind] && item.name == stats.last[ind].name && item.size == stats.last[ind].size ) {
+                if ( stats.last[ind] && item.path == stats.last[ind].path && item.size == stats.last[ind].size ) {
 
                     //console.log( item.name + ' : same ' + item.size)
                 }
@@ -128,29 +205,67 @@ async function main() {
         if ( config.identical >= 2 ) {
 
             config.identical = 0
+            
+            var fails = 0
+            
             console.log( 'checked few times and it is the same.' )
             console.log( 'let\'s move.' )
-            for ( var item in stats.current ) {
-                var code = await new Promise( (resolve) => {
-                    mvTmp( stats.current[item].name, resolve )    
-                })
-                console.log( 'code: ' + code )
+            
+            if ( stats.current.length > 0 ) {
+
+                // random subfolder for tmp
+                config.tmpRandom = randomString( 13 )
+
+	            for ( var item in stats.current ) {
+	                var code = await new Promise( (resolve) => {
+	                    mvTmp( stats.current[item].path, resolve )    
+	                })
+	                if ( code > 0 ) fails++
+	                //console.log( 'mv code: ' + code )
+	            }
+            }
+                
+            if ( fails > 0 ) console.log( 'something failed while mv.' )
+            
+            else {    
+                fails = 0
+                console.log( 'running script.' )
+                for ( var item in stats.current ) {
+	                var code = await new Promise( (resolve) => {
+	                    runSh( stats.current[item].name, resolve )    
+	                })
+	                //console.log( 'sh code: ' + code )
+                    if ( code > 0 ) fails++
+	            }
+	
+                if ( fails > 0 ) console.log( 'something failed while sh.' )
+
+                if ( config.postScript ) {
+	                var code = await new Promise( (resolve) => {
+	                    runPostSh( resolve )
+	                })
+	                //console.log( 'rm code: ' + code )
+                    if ( code == 0 ) console.log( 'postSh done.' )
+
+                }
+	            
+                if ( ! config.archive ) {
+	                var code = await new Promise( (resolve) => {
+	                    rmTmp( resolve )
+	                })
+	                //console.log( 'rm code: ' + code )
+                    if ( code == 0 ) console.log( 'tmpRandom cleaned up.' )
+	            }
+	            
             }
 
-
+            config.tmpRandom = ''
+            
         }
                 
         stats.last = new Array()
         stats.current.forEach( ( item ) => { stats.last.push( item ) } )
 
-        //console.log(stats.last)
-        
-        //console.log( 'done' )                                              
-    }
-
-
-    
+    }    
 
 }
-
-main()
