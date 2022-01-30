@@ -15,11 +15,13 @@ var config = {
     sourcedir: source_dir,
     tmpdir: tmp_dir,
     tmpRandom: '',
-    script: './shell.sh',
+    script: './scripts/SLIDE/slide.sh',
     postScript: '',
-    interval: 500,
+    interval: 3000,
+    //how long before folder is considered stable and ready
+    safety: 10000,
     identical: 0,
-    archive: false
+    archive: true
 
 }               
 
@@ -48,7 +50,7 @@ async function readStats( file ) {
         var file_path = config.sourcedir + '/' + file
 
         var item_stat = await new Promise ( (resolve, error) => {
-            fs.stat(file_path, (e,s) => { 
+            fs.stat(file_path, ( e, s ) => { 
                 resolve(s)
             })
         })
@@ -141,7 +143,7 @@ async function runSh( file, resolve ) {
 }
 
 
-async function runPostSh( file, resolve ) {
+async function runPostSh( resolve ) {
     var sh = cproc.spawn(config.postScript, [ config.tmpdir + '/' + config.tmpRandom ])
 
     sh.stdout.on('data', (d) => {
@@ -169,7 +171,6 @@ async function main() {
 	    stats.current = new Array()
     
         for ( var i in content ) {
-            var file = '/' + i
             var item = await readStats( content[i] )
             stats.current.push(item)       
         }
@@ -202,17 +203,17 @@ async function main() {
         }
 
         // seems it is all same and stable: let's move the files and run some scripts
-        if ( config.identical >= 2 ) {
+        if ( config.identical >= ( config.safety / config.interval ) ) {
 
             config.identical = 0
             
             var fails = 0
             
             console.log( 'checked few times and it is the same.' )
-            console.log( 'let\'s move.' )
             
             if ( stats.current.length > 0 ) {
 
+                console.log( 'let\'s move.' )
                 // random subfolder for tmp
                 config.tmpRandom = randomString( 13 )
 
@@ -227,7 +228,7 @@ async function main() {
                 
             if ( fails > 0 ) console.log( 'something failed while mv.' )
             
-            else {    
+            else if ( stats.current.length > 0) {    
                 fails = 0
                 console.log( 'running script.' )
                 for ( var item in stats.current ) {
@@ -235,7 +236,11 @@ async function main() {
 	                    runSh( stats.current[item].name, resolve )    
 	                })
 	                //console.log( 'sh code: ' + code )
-                    if ( code > 0 ) fails++
+                    if ( code > 0 ) {
+                        console.log( stats.current[item].name + ' script failed.' )
+                        fails++
+                    }
+                    else console.log( stats.current[item].name + ' script success.' )
 	            }
 	
                 if ( fails > 0 ) console.log( 'something failed while sh.' )
@@ -269,3 +274,5 @@ async function main() {
     }    
 
 }
+
+main()

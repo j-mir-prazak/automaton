@@ -15,5 +15,5 @@ DST="$2"
 [[ ! -d "$DST" ]] && exit 1
 #mv "$1" "$2" && exit 0
 ## testing 
-cp "$1" "$2" && exit 0
+mv "$1" "$2" && exit 0
 exit 1
