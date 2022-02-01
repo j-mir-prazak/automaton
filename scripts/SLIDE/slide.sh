@@ -11,7 +11,7 @@ FILE="$(realpath $1)"
 NAME=$(echo "$(basename $FILE)" | perl -pE 's/(.*)\..*/$1/g')
 TMP=/tmp/
 TMPFILE="$TMP/$NAME".mkv
-DST=/tmp/slides/
+DST=/home/pi/m70/slides/
 
 
 [[ ! -d $DST ]] && mkdir -p "$DST"

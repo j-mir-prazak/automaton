@@ -17,9 +17,9 @@ var config = {
     tmpRandom: '',
     script: './scripts/SLIDE/slide.sh',
     postScript: '',
-    interval: 3000,
+    interval: 4000,
     //how long before folder is considered stable and ready
-    safety: 10000,
+    safety: 20000,
     identical: 0,
     archive: true
 

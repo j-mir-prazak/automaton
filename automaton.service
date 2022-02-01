@@ -1,0 +1,9 @@
+[Unit]
+Description=Slides automation
+
+[Service]
+ExecStart=/home/pi/automaton/autostart.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
